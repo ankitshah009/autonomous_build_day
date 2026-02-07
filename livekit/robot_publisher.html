@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Track-1 Robot Publisher</title>
+    <link rel="stylesheet" href="./common.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Track-1 Robot Publisher</h1>
+      <div>Publishes camera/audio and telemetry to a LiveKit room.</div>
+    </header>
+    <main>
+      <section class="panel">
+        <div class="row">
+          <label>
+            LiveKit URL
+            <input id="livekitUrl" value="ws://127.0.0.1:7880" />
+          </label>
+          <label>
+            Token Server
+            <input id="tokenServer" value="http://127.0.0.1:3000/token" />
+          </label>
+          <label>
+            Room
+            <input id="roomName" value="track1-room" />
+          </label>
+          <label>
+            Identity
+            <input id="identity" value="robot-publisher" />
+          </label>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <label>
+            Telemetry Feed URL
+            <input id="telemetryUrl" value="http://127.0.0.1:8765/latest" />
+          </label>
+          <label>
+            Publish Rate (ms)
+            <input id="publishMs" value="200" />
+          </label>
+          <button id="connectBtn">Connect + Publish</button>
+          <button id="disconnectBtn" class="secondary">Disconnect</button>
+        </div>
+        <p id="status" class="status-warn">Disconnected</p>
+      </section>
+
+      <section class="panel">
+        <h3>Local Preview</h3>
+        <div id="video-grid"></div>
+      </section>
+
+      <section class="panel">
+        <h3>Last Telemetry Payload</h3>
+        <pre id="telemetryDump">{}</pre>
+      </section>
+    </main>
+
+    <script type="module">
+      import { Room, RoomEvent } from "https://cdn.jsdelivr.net/npm/livekit-client@2.15.4/+esm";
+
+      const el = (id) => document.getElementById(id);
+      const statusEl = el("status");
+      const dumpEl = el("telemetryDump");
+      const videoGrid = el("video-grid");
+
+      let room = null;
+      let telemetryTimer = null;
+      let lastTs = 0;
+
+      function setStatus(text, kind = "warn") {
+        statusEl.textContent = text;
+        statusEl.className = `status-${kind}`;
+      }
+
+      async function mintToken() {
+        const tokenServer = el("tokenServer").value.trim();
+        const roomName = el("roomName").value.trim();
+        const identity = el("identity").value.trim();
+
+        const response = await fetch(tokenServer, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ roomName, identity, canPublish: true, canSubscribe: false }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`token request failed (${response.status})`);
+        }
+
+        const data = await response.json();
+        return data.token;
+      }
+
+      async function startPublishingTelemetry() {
+        const telemetryUrl = el("telemetryUrl").value.trim();
+        const publishMs = Math.max(50, Number(el("publishMs").value || "200"));
+
+        telemetryTimer = setInterval(async () => {
+          if (!room || room.state !== "connected") return;
+          try {
+            const r = await fetch(telemetryUrl, { cache: "no-store" });
+            if (!r.ok) return;
+            const payload = await r.json();
+            if (!payload || !payload.ts_ms || payload.ts_ms === lastTs) return;
+
+            lastTs = payload.ts_ms;
+            dumpEl.textContent = JSON.stringify(payload, null, 2);
+
+            const packet = new TextEncoder().encode(JSON.stringify(payload));
+            await room.localParticipant.publishData(packet, { topic: "telemetry", reliable: false });
+          } catch {
+            // Keep loop alive; status text is enough for operators.
+          }
+        }, publishMs);
+      }
+
+      async function connect() {
+        if (room && room.state === "connected") return;
+
+        setStatus("Minting token...", "warn");
+        const token = await mintToken();
+
+        room = new Room({ adaptiveStream: true, dynacast: true });
+        room.on(RoomEvent.Disconnected, () => {
+          setStatus("Disconnected", "warn");
+        });
+
+        const livekitUrl = el("livekitUrl").value.trim();
+        await room.connect(livekitUrl, token);
+
+        await room.localParticipant.enableCameraAndMicrophone();
+        room.localParticipant.videoTrackPublications.forEach((pub) => {
+          const track = pub.videoTrack;
+          if (!track) return;
+          const element = track.attach();
+          videoGrid.appendChild(element);
+        });
+
+        await startPublishingTelemetry();
+        setStatus("Connected + publishing telemetry", "ok");
+      }
+
+      async function disconnect() {
+        if (telemetryTimer) {
+          clearInterval(telemetryTimer);
+          telemetryTimer = null;
+        }
+        if (room) {
+          room.disconnect();
+          room = null;
+        }
+        videoGrid.innerHTML = "";
+        setStatus("Disconnected", "warn");
+      }
+
+      el("connectBtn").addEventListener("click", () => {
+        connect().catch((err) => {
+          setStatus(`Error: ${err.message}`, "err");
+        });
+      });
+
+      el("disconnectBtn").addEventListener("click", () => {
+        disconnect().catch((err) => {
+          setStatus(`Error: ${err.message}`, "err");
+        });
+      });
+    </script>
+  </body>
+</html>

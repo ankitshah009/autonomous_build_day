@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "track1-autonomy-stack"
+version = "0.1.0"
+description = "Closed-loop Track-1 autonomy starter with judge-facing LiveKit integration"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "rich>=13.7.0,<14.0.0"
+]
+
+[tool.setuptools.packages.find]
+include = ["autonomy*"]

@@ -1,0 +1,14 @@
+{
+  "name": "track1-livekit-services",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start:token": "node token_server.mjs"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "livekit-server-sdk": "^2.10.2"
+  }
+}

@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Track-1 Judge Dashboard</title>
+    <link rel="stylesheet" href="./common.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Track-1 Judge Dashboard</h1>
+      <div>Live view for plan, execution, retries, replans, and trial outcomes.</div>
+    </header>
+
+    <main>
+      <section class="panel">
+        <div class="row">
+          <label>
+            LiveKit URL
+            <input id="livekitUrl" value="ws://127.0.0.1:7880" />
+          </label>
+          <label>
+            Token Server
+            <input id="tokenServer" value="http://127.0.0.1:3000/token" />
+          </label>
+          <label>
+            Room
+            <input id="roomName" value="track1-room" />
+          </label>
+          <label>
+            Identity
+            <input id="identity" value="judge-dashboard" />
+          </label>
+          <button id="connectBtn">Connect</button>
+          <button id="disconnectBtn" class="secondary">Disconnect</button>
+        </div>
+        <p id="status" class="status-warn">Disconnected</p>
+      </section>
+
+      <section class="panel">
+        <h3>Video Tracks</h3>
+        <div id="video-grid" class="row"></div>
+      </section>
+
+      <section class="grid-2">
+        <div class="panel">
+          <h3>Current Phase</h3>
+          <pre id="phase">-</pre>
+          <h3>Current Action</h3>
+          <pre id="action">-</pre>
+          <h3>Last Error</h3>
+          <pre id="lastError">-</pre>
+        </div>
+
+        <div class="panel">
+          <h3>Scoreboard</h3>
+          <pre id="scoreboard">{}</pre>
+        </div>
+
+        <div class="panel">
+          <h3>Plan</h3>
+          <ol id="planList" class="list"></ol>
+        </div>
+
+        <div class="panel">
+          <h3>World Snapshot</h3>
+          <pre id="world">{}</pre>
+        </div>
+      </section>
+    </main>
+
+    <script type="module">
+      import { Room, RoomEvent } from "https://cdn.jsdelivr.net/npm/livekit-client@2.15.4/+esm";
+
+      const el = (id) => document.getElementById(id);
+      const statusEl = el("status");
+      let room = null;
+
+      function setStatus(text, kind = "warn") {
+        statusEl.textContent = text;
+        statusEl.className = `status-${kind}`;
+      }
+
+      async function mintToken() {
+        const tokenServer = el("tokenServer").value.trim();
+        const roomName = el("roomName").value.trim();
+        const identity = el("identity").value.trim();
+
+        const response = await fetch(tokenServer, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ roomName, identity, canPublish: false, canSubscribe: true }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`token request failed (${response.status})`);
+        }
+
+        const body = await response.json();
+        return body.token;
+      }
+
+      function renderTelemetry(msg) {
+        el("phase").textContent = msg.phase || "-";
+        el("action").textContent = msg.current_action || "-";
+        el("lastError").textContent = msg.last_error || "-";
+        el("scoreboard").textContent = JSON.stringify(msg.metrics || {}, null, 2);
+        el("world").textContent = JSON.stringify(msg.world || {}, null, 2);
+
+        const plan = Array.isArray(msg.plan) ? msg.plan : [];
+        const planList = el("planList");
+        planList.innerHTML = "";
+        plan.forEach((step) => {
+          const li = document.createElement("li");
+          li.textContent = step;
+          if (step === msg.current_action) {
+            li.style.fontWeight = "700";
+          }
+          planList.appendChild(li);
+        });
+      }
+
+      async function connect() {
+        if (room && room.state === "connected") return;
+
+        setStatus("Minting token...", "warn");
+        const token = await mintToken();
+
+        room = new Room();
+        room.on(RoomEvent.TrackSubscribed, (track) => {
+          if (track.kind !== "video") return;
+          const element = track.attach();
+          element.style.maxWidth = "420px";
+          el("video-grid").appendChild(element);
+        });
+
+        room.on(RoomEvent.DataReceived, (payload, _participant, _kind, topic) => {
+          if (topic !== "telemetry") return;
+          try {
+            const parsed = JSON.parse(new TextDecoder().decode(payload));
+            renderTelemetry(parsed);
+          } catch {
+            // Ignore malformed packet.
+          }
+        });
+
+        room.on(RoomEvent.Disconnected, () => {
+          setStatus("Disconnected", "warn");
+        });
+
+        await room.connect(el("livekitUrl").value.trim(), token);
+        setStatus("Connected", "ok");
+      }
+
+      async function disconnect() {
+        if (room) {
+          room.disconnect();
+          room = null;
+        }
+        el("video-grid").innerHTML = "";
+        setStatus("Disconnected", "warn");
+      }
+
+      el("connectBtn").addEventListener("click", () => {
+        connect().catch((err) => {
+          setStatus(`Error: ${err.message}`, "err");
+        });
+      });
+      el("disconnectBtn").addEventListener("click", () => {
+        disconnect().catch((err) => {
+          setStatus(`Error: ${err.message}`, "err");
+        });
+      });
+    </script>
+  </body>
+</html>
