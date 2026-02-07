@@ -4,3 +4,11 @@ __pycache__/
 runs/
 node_modules/
 .DS_Store
+.env
+web/.next/
+web/node_modules/
+checkpoints/
+data/
+*.onnx
+*.pt
+*.pth

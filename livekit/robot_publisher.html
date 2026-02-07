@@ -125,6 +125,12 @@
         room = new Room({ adaptiveStream: true, dynacast: true });
         room.on(RoomEvent.Disconnected, () => {
           setStatus("Disconnected", "warn");
+          // Auto reconnect after 5 seconds
+          setTimeout(() => {
+            connect().catch((err) => {
+              setStatus(`Reconnect failed: ${err.message}`, "err");
+            });
+          }, 5000);
         });
 
         const livekitUrl = el("livekitUrl").value.trim();

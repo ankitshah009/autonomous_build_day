@@ -1,22 +1,43 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import Dict, Iterable
+from typing import TYPE_CHECKING, Dict, Iterable, Optional
 
 from autonomy.types import DetectedObject, WorldState
+
+if TYPE_CHECKING:
+    from autonomy.perception_providers import PerceptionProvider
 
 
 class PerceptionModule:
     """Lightweight temporal smoothing to avoid flickery world state."""
 
-    def __init__(self, confidence_decay: float = 0.94) -> None:
+    def __init__(
+        self,
+        confidence_decay: float = 0.94,
+        provider: Optional[PerceptionProvider] = None,
+    ) -> None:
         self._tracks: Dict[str, DetectedObject] = {}
         self._confidence_decay = confidence_decay
+        self._provider = provider
 
     def reset(self) -> None:
         self._tracks.clear()
+        if self._provider is not None:
+            self._provider.reset()
 
-    def update(self, state: WorldState, detections: Iterable[DetectedObject]) -> WorldState:
+    def update(
+        self,
+        state: WorldState,
+        detections: Optional[Iterable[DetectedObject]] = None,
+    ) -> WorldState:
+        if detections is None and self._provider is not None:
+            captured, metadata = self._provider.capture()
+            detections = captured
+            if "camera_frames" in metadata:
+                state.camera_frames = metadata["camera_frames"]
+        if detections is None:
+            detections = []
         seen = set()
         for det in detections:
             seen.add(det.obj_id)

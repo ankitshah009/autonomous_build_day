@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 from autonomy.planner import Planner
+from autonomy.robot_interface import RobotInterface
 from autonomy.sim_robot import SimRobot
 from autonomy.types import Goal, ObjClass, PlanStep, WorldState
 
@@ -13,7 +14,13 @@ class StepExecutor:
     def __init__(self, planner: Planner) -> None:
         self._planner = planner
 
-    def run_step(self, step: PlanStep, robot: SimRobot, goal: Goal, state: WorldState) -> Tuple[bool, Optional[str]]:
+    def run_step(
+        self,
+        step: PlanStep,
+        robot: Union[SimRobot, RobotInterface],
+        goal: Goal,
+        state: WorldState,
+    ) -> Tuple[bool, Optional[str]]:
         action = step.action
         if action == "SEARCH":
             target_cls = self._resolve_search_target(step, goal)

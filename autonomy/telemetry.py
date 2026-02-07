@@ -96,6 +96,13 @@ def world_snapshot(state: WorldState) -> dict:
             }
             for obj in sorted(state.objects.values(), key=lambda o: o.obj_id)
         ],
+        "robot_state": {
+            "joint_positions": [round(p, 3) for p in state.joint_positions],
+            "joint_velocities": [round(v, 3) for v in state.joint_velocities],
+            "gripper_state": state.gripper_state,
+            "battery_level": round(state.battery_level, 1),
+            "temperature": round(state.temperature, 1),
+        },
     }
 
 

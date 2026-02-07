@@ -74,6 +74,8 @@ class Track1Agent:
             state = self.perception.update(state, self.robot.observe())
             state.held_object_id = self.robot.held_object_id
 
+            self._update_robot_state(state, step)
+
             if ok:
                 state.last_error = None
                 retries_on_step = 0
@@ -116,6 +118,30 @@ class Track1Agent:
         if not self._recent_results:
             return None
         return mean(self._recent_results)
+
+    def _update_robot_state(self, state: WorldState, step: PlanStep) -> None:
+        """Update robot state based on the executed step."""
+        action = step.action
+        if action == "SEARCH":
+            # Simulate scanning movement
+            state.joint_positions = [self.robot._rng.uniform(-1.57, 1.57) for _ in range(6)]
+            state.joint_velocities = [self.robot._rng.uniform(-0.5, 0.5) for _ in range(6)]
+        elif action == "NAVIGATE":
+            # Simulate navigation to target
+            state.joint_positions = [self.robot._rng.uniform(-3.14, 3.14) for _ in range(6)]
+            state.joint_velocities = [self.robot._rng.uniform(0.1, 1.0) for _ in range(6)]
+        elif action == "GRASP":
+            state.gripper_state = "closed"
+            state.joint_positions[5] = 0.0  # Assume joint 6 is gripper
+            state.joint_velocities[5] = 0.0
+        elif action == "PLACE_IN_BIN":
+            state.gripper_state = "open"
+            state.joint_positions[5] = 1.57  # Open gripper
+            state.joint_velocities[5] = 0.0
+        # Simulate battery drain and temperature
+        state.battery_level = max(0.0, state.battery_level - self.robot._rng.uniform(0.1, 1.0))
+        state.temperature = state.temperature + self.robot._rng.uniform(-0.5, 0.5)
+        state.temperature = max(20.0, min(50.0, state.temperature))
 
     def _emit(
         self,

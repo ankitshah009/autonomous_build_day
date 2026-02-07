@@ -35,6 +35,12 @@ class WorldState:
     drawer_open: bool = False
     last_error: Optional[str] = None
     phase: str = "IDLE"
+    joint_positions: List[float] = field(default_factory=lambda: [0.0] * 6)
+    joint_velocities: List[float] = field(default_factory=lambda: [0.0] * 6)
+    gripper_state: str = "open"
+    battery_level: float = 100.0
+    temperature: float = 25.0
+    camera_frames: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
