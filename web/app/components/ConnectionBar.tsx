@@ -26,7 +26,7 @@ export function ConnectionBar({
     process.env.NEXT_PUBLIC_LIVEKIT_URL || "ws://127.0.0.1:7880"
   );
   const [tokenServer, setTokenServer] = useState(
-    process.env.NEXT_PUBLIC_TOKEN_SERVER || "http://127.0.0.1:3000/token"
+    process.env.NEXT_PUBLIC_TOKEN_SERVER || "http://127.0.0.1:3001/token"
   );
   const [roomName, setRoomName] = useState(
     process.env.NEXT_PUBLIC_ROOM_NAME || "track1-room"
